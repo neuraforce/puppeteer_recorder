@@ -18,26 +18,38 @@
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 
-const [, , url] = process.argv;
+const args = process.argv.slice(2);
+
+// Parse optional flags
+const saveDomIndex = args.indexOf('--save_dom');
+const saveDom = saveDomIndex !== -1;
+if (saveDom) {
+  args.splice(saveDomIndex, 1);
+}
+
+const fileNameIndex = args.indexOf('--output');
+let outputFile = null;
+if (fileNameIndex !== -1) {
+  if (fileNameIndex === args.length - 1) {
+    throw new Error('Filename required when passing --output.');
+  }
+  outputFile = args[fileNameIndex + 1];
+  args.splice(fileNameIndex, 2);
+}
+
+const url = args[0];
 
 if (!url) {
   console.error('url required.');
   process.exit(1);
 } else {
   require('./recorder')
-    .default(url)
+    .default(url, { saveDom })
     .then((output) => {
       output.pipe(process.stdout);
 
-      // Check if the output should also be written to a file
-      const fileNameIndex = process.argv.indexOf('--output');
-      if (fileNameIndex !== -1) {
-        if (fileNameIndex === process.argv.length) {
-          throw new Error('Filename required when passing --output.');
-        }
-
-        const fileName = process.argv[fileNameIndex + 1];
-        output.pipe(require('fs').createWriteStream(fileName, {}));
+      if (outputFile) {
+        output.pipe(require('fs').createWriteStream(outputFile, {}));
       }
     });
 }
