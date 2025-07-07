@@ -62,8 +62,21 @@ To compile the _injected script_, the _recorder_ and the _runner_:
 
 ```bash
 npm install
+# If Chromium download fails (e.g. due to network restrictions), skip the
+# bundled browser download with:
+# PUPPETEER_SKIP_DOWNLOAD=1 npm install
 npm run build
 ```
+
+### Running tests
+
+Browser-based tests rely on Puppeteer. Provide the path to an installed Chrome or
+Chromium binary via the `CHROME_BIN` environment variable:
+
+```bash
+CHROME_BIN=/path/to/chrome npm test
+```
+If `CHROME_BIN` is not set, these tests are skipped.
 
 To make the package available to run via `npx`:
 ```bash
