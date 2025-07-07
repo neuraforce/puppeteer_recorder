@@ -158,7 +158,13 @@ export default async (
     if (!options.saveDom) {
       return;
     }
-    const html = await page.content();
+    const { root } = await client.send('DOM.getDocument', {
+      depth: -1,
+      pierce: true,
+    });
+    const { outerHTML } = await client.send('DOM.getOuterHTML', {
+      nodeId: root.nodeId,
+    });
     const timestamp = Math.floor(Date.now() / 1000);
     let fileName = `${timestamp}.html`;
     let suffix = 1;
@@ -166,7 +172,7 @@ export default async (
       fileName = `${timestamp}_${suffix}.html`;
       suffix++;
     }
-    await fs.writeFile(fileName, html);
+    await fs.writeFile(fileName, outerHTML);
     addLineToPuppeteerScript(`// saved DOM to ${fileName}`);
   };
   page.on('domcontentloaded', async () => {
