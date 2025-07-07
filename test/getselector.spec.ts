@@ -19,7 +19,11 @@
  */
 
 import * as puppeteer from 'puppeteer';
+import { existsSync } from 'fs';
 import { getSelector, isSubmitButton } from '../src/recorder';
+
+const chromePath = process.env.CHROME_BIN;
+const describeOrSkip = chromePath && existsSync(chromePath) ? describe : describe.skip;
 
 declare module 'puppeteer' {
   interface ElementHandle {
@@ -34,9 +38,13 @@ let browser: puppeteer.Browser,
   page: puppeteer.Page,
   client: puppeteer.CDPSession;
 
-describe('DOM', () => {
+describeOrSkip('DOM', () => {
   beforeAll(async () => {
-    browser = await puppeteer.launch({ defaultViewport: null, headless: true });
+    browser = await puppeteer.launch({
+      defaultViewport: null,
+      headless: true,
+      executablePath: chromePath,
+    });
     page = await browser.newPage();
     client = page._client;
   });

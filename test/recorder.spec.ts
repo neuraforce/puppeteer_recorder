@@ -19,12 +19,16 @@
  */
 
 import * as puppeteer from 'puppeteer';
+import { existsSync } from 'fs';
 import recorder from '../src/recorder';
 import * as express from 'express';
 
+const chromePath = process.env.CHROME_BIN;
+const describeOrSkip = chromePath && existsSync(chromePath) ? describe : describe.skip;
+
 import { Readable } from 'stream';
 
-describe('Recorder', () => {
+describeOrSkip('Recorder', () => {
   let browser, page, app, url, server;
 
   async function getScriptFromStream(stream: Readable) {
@@ -43,6 +47,7 @@ describe('Recorder', () => {
     browser = await puppeteer.launch({
       defaultViewport: null,
       headless: true,
+      executablePath: chromePath,
     });
 
     app = express();
