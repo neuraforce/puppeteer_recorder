@@ -16,6 +16,7 @@
 
 import * as puppeteer from 'puppeteer';
 import { Readable } from 'stream';
+import { existsSync, promises as fs } from 'fs';
 import * as helpers from './helpers';
 import * as protocol from 'devtools-protocol';
 import { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping.js';
@@ -37,6 +38,7 @@ declare module 'puppeteer' {
 
 interface RecorderOptions {
   wsEndpoint?: string;
+  saveDom?: boolean;
 }
 
 async function getBrowserInstance(options: RecorderOptions) {
@@ -145,6 +147,28 @@ export default async (
   const browser = await getBrowserInstance(options);
   const page = await browser.pages().then((pages) => pages[0]);
   const client = page._client;
+
+  let identation = 0;
+  const addLineToPuppeteerScript = (line: string) => {
+    const data = '  '.repeat(identation) + line;
+    output.push(data + '\n');
+  };
+
+  const saveDomIfNeeded = async () => {
+    if (!options.saveDom) {
+      return;
+    }
+    const html = await page.content();
+    const timestamp = Math.floor(Date.now() / 1000);
+    let fileName = `${timestamp}.html`;
+    let suffix = 1;
+    while (existsSync(fileName)) {
+      fileName = `${timestamp}_${suffix}.html`;
+      suffix++;
+    }
+    await fs.writeFile(fileName, html);
+    addLineToPuppeteerScript(`// saved DOM to ${fileName}`);
+  };
   page.on('domcontentloaded', async () => {
     await client.send('Debugger.enable', {});
     await client.send('DOMDebugger.setEventListenerBreakpoint', {
@@ -199,6 +223,7 @@ export default async (
     }
     const selector = await getSelector(client, targetId);
     if (selector) {
+      await saveDomIfNeeded();
       addLineToPuppeteerScript(`await click(${escapeSelector(selector)});`);
     } else {
       console.log(`failed to generate selector`);
@@ -254,32 +279,27 @@ export default async (
     await resume();
   };
 
-  client.on('Debugger.paused', async function (
-    pausedEvent: protocol.Protocol.Debugger.PausedEvent
-  ) {
-    const eventName = pausedEvent.data.eventName;
-    const localFrame = pausedEvent.callFrames[0].scopeChain[0];
-    const { result } = await client.send('Runtime.getProperties', {
-      objectId: localFrame.object.objectId,
-    });
-    if (eventName === 'listener:click') {
-      await handleClickEvent(result);
-    } else if (eventName === 'listener:submit') {
-      await handleSubmitEvent(result);
-    } else if (eventName === 'listener:change') {
-      await handleChangeEvent(result);
-    } else if (eventName === 'listener:scroll') {
-      await handleScrollEvent();
-    } else {
-      await skip();
+  client.on(
+    'Debugger.paused',
+    async function (pausedEvent: protocol.Protocol.Debugger.PausedEvent) {
+      const eventName = pausedEvent.data.eventName;
+      const localFrame = pausedEvent.callFrames[0].scopeChain[0];
+      const { result } = await client.send('Runtime.getProperties', {
+        objectId: localFrame.object.objectId,
+      });
+      if (eventName === 'listener:click') {
+        await handleClickEvent(result);
+      } else if (eventName === 'listener:submit') {
+        await handleSubmitEvent(result);
+      } else if (eventName === 'listener:change') {
+        await handleChangeEvent(result);
+      } else if (eventName === 'listener:scroll') {
+        await handleScrollEvent();
+      } else {
+        await skip();
+      }
     }
-  });
-
-  let identation = 0;
-  const addLineToPuppeteerScript = (line: string) => {
-    const data = '  '.repeat(identation) + line;
-    output.push(data + '\n');
-  };
+  );
 
   page.evaluateOnNewDocument(() => {
     window.addEventListener('change', (event) => {}, true);
